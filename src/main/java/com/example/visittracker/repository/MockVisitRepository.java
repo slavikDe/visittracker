@@ -30,4 +30,8 @@ public class MockVisitRepository {
 
         return doctorVisits;
     }
+
+    public List<Visit> getAllVisits() {
+        return List.copyOf(visits);
+    }
 }

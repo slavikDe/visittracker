@@ -6,6 +6,7 @@ import com.example.visittracker.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -13,10 +14,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MockPatientRepository {
 
-    private final List<Patient> patients;
+    private final HashSet<Patient> patients;
 
     public MockPatientRepository() {
-        patients = new LinkedList<>();
+        patients = new HashSet<>();
     }
 
     public Patient getPatientById(Integer id) {
@@ -34,4 +35,16 @@ public class MockPatientRepository {
         patients.add(p);
     }
 
+    public boolean exists(Patient patient) {
+        return patients.contains(patient);
+    }
+
+    public Integer savePatient(Patient patient) {
+        patients.add(patient);
+        return patient.getId();
+    }
+
+    public List<Patient> getAllPatients() {
+        return List.copyOf(patients);
+    }
 }
