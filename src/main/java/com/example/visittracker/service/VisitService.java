@@ -6,16 +6,19 @@ import com.example.visittracker.dto.StatisticDto;
 import com.example.visittracker.dto.VisitDto;
 import com.example.visittracker.entity.Doctor;
 import com.example.visittracker.entity.Patient;
+import com.example.visittracker.entity.TimeRange;
 import com.example.visittracker.entity.Visit;
 import com.example.visittracker.exception.NotFoundException;
+import com.example.visittracker.exception.SlotTakenException;
 import com.example.visittracker.repository.MockDoctorRepository;
 import com.example.visittracker.repository.MockPatientRepository;
 import com.example.visittracker.repository.MockVisitRepository;
-import com.example.visittracker.validation.VisitValidator;
+import com.example.visittracker.validation.DateValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -25,7 +28,7 @@ public class VisitService {
     private final MockVisitRepository visitRepository;
     private final MockDoctorRepository doctorRepository;
     private final MockPatientRepository patientRepository;
-    private final VisitValidator visitValidator;
+    private final DateValidator visitValidator;
 
     public List<Visit> getVisitsByDoctorId(Integer doctorId) {
         doctorRepository.getDoctorById(doctorId);
@@ -39,22 +42,28 @@ public class VisitService {
     }
 
     public Visit createVisit(VisitDto visitDto) {
-        visitValidator.validateVisitDto(visitDto);
-
-        Instant startDateTime = visitValidator.parseDateTime(visitDto.start(), "start");
-        Instant endDateTime = visitValidator.parseDateTime(visitDto.end(), "end");
-
-        visitValidator.validateTimeRange(startDateTime, endDateTime);
+        if (visitDto == null) throw new IllegalArgumentException("Visit can't be null");
+        if (visitDto.patientId() == null) throw new IllegalArgumentException("Patient id can't be null");
+        if (visitDto.doctorId() == null) throw new IllegalArgumentException("Doctor id can't be null");
 
         Doctor doc = doctorRepository.getDoctorById(visitDto.doctorId());
-        Patient pat = patientRepository.getPatientById(visitDto.patientId());
-
-        Visit visit = new Visit(startDateTime, endDateTime, pat, doc);
-        if (!visitRepository.saveVisit(visit)) {
-            throw new IllegalArgumentException("Such visit already exists");
+        TimeRange timeRange = visitValidator.validateDates(visitDto, doc.getTimeZone());
+        if (visitRepository.existsOverlappingVisit(doc.getId(), timeRange)) {
+            throw new SlotTakenException(
+                    "Doctor " + doc.getFirstName() + " " + doc.getLastName()
+                            + " already has a visit between " + inDoctorZone(timeRange.start(), doc)
+                            + " and " + inDoctorZone(timeRange.end(), doc)
+                            + " (" + doc.getTimeZone() + ")");
         }
 
-        return visit;
+        Patient pat = patientRepository.getPatientById(visitDto.patientId());
+
+        return visitRepository.saveVisit(new Visit(timeRange.start(), timeRange.end(), pat, doc));
+    }
+
+    /** Renders an instant back as the doctor's local time, so errors echo what the caller sent. */
+    private String inDoctorZone(Instant instant, Doctor doctor) {
+        return LocalDateTime.ofInstant(instant, doctor.getTimeZone()).toString();
     }
 
     public Integer createDoctor(DoctorDto doctorDto) {
