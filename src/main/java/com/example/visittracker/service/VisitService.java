@@ -2,116 +2,95 @@ package com.example.visittracker.service;
 
 import com.example.visittracker.dto.DoctorDto;
 import com.example.visittracker.dto.PatientDto;
-import com.example.visittracker.dto.StatisticDto;
 import com.example.visittracker.dto.VisitDto;
+import com.example.visittracker.dto.VisitResponseDto;
 import com.example.visittracker.entity.Doctor;
 import com.example.visittracker.entity.Patient;
 import com.example.visittracker.entity.TimeRange;
 import com.example.visittracker.entity.Visit;
-import com.example.visittracker.exception.NotFoundException;
-import com.example.visittracker.exception.SlotTakenException;
-import com.example.visittracker.repository.MockDoctorRepository;
-import com.example.visittracker.repository.MockPatientRepository;
-import com.example.visittracker.repository.MockVisitRepository;
+import com.example.visittracker.repository.DoctorRepository;
+import com.example.visittracker.repository.PatientRepository;
+import com.example.visittracker.repository.VisitRepository;
 import com.example.visittracker.validation.DateValidator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.List;
 
 @RequiredArgsConstructor
 @Service
 public class VisitService {
-    private final MockVisitRepository visitRepository;
-    private final MockDoctorRepository doctorRepository;
-    private final MockPatientRepository patientRepository;
+
+    private final VisitRepository visitRepository;
+    private final DoctorRepository doctorRepository;
+    private final PatientRepository patientRepository;
     private final DateValidator visitValidator;
 
-    public List<Visit> getVisitsByDoctorId(Integer doctorId) {
-        doctorRepository.getDoctorById(doctorId);
+    @Transactional
+    public VisitResponseDto createVisit(VisitDto visitDto) {
+        if (visitDto == null) throw badRequest("Visit can't be null");
+        if (visitDto.patientId() == null) throw badRequest("Patient id can't be null");
+        if (visitDto.doctorId() == null) throw badRequest("Doctor id can't be null");
 
-        List<Visit> visits = visitRepository.getVisitsByDoctorId(doctorId);
-        if (visits.isEmpty()) {
-            throw new NotFoundException("Not found visits for doctor with id:" + doctorId);
-        }
+        // The doctor is resolved first for two reasons: the payload carries wall-clock time with no
+        // offset, so it is the doctor's zone that turns it into an instant; and the row lock
+        // serialises concurrent bookings for this doctor, closing the check-then-act race below.
+        Doctor doc = doctorRepository.findByIdForUpdate(visitDto.doctorId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Doctor with id: " + visitDto.doctorId() + " not found"));
 
-        return visits;
-    }
-
-    public Visit createVisit(VisitDto visitDto) {
-        if (visitDto == null) throw new IllegalArgumentException("Visit can't be null");
-        if (visitDto.patientId() == null) throw new IllegalArgumentException("Patient id can't be null");
-        if (visitDto.doctorId() == null) throw new IllegalArgumentException("Doctor id can't be null");
-
-        Doctor doc = doctorRepository.getDoctorById(visitDto.doctorId());
         TimeRange timeRange = visitValidator.validateDates(visitDto, doc.getTimeZone());
-        if (visitRepository.existsOverlappingVisit(doc.getId(), timeRange)) {
-            throw new SlotTakenException(
+
+        if (visitRepository.existsOverlapping(doc.getId(), timeRange.start(), timeRange.end())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Doctor " + doc.getFirstName() + " " + doc.getLastName()
-                            + " already has a visit between " + inDoctorZone(timeRange.start(), doc)
-                            + " and " + inDoctorZone(timeRange.end(), doc)
+                            + " already has a visit overlapping "
+                            + DateValidator.format(timeRange.start(), doc.getTimeZone())
+                            + " - " + DateValidator.format(timeRange.end(), doc.getTimeZone())
                             + " (" + doc.getTimeZone() + ")");
         }
 
-        Patient pat = patientRepository.getPatientById(visitDto.patientId());
+        Patient pat = patientRepository.findById(visitDto.patientId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Patient with id: " + visitDto.patientId() + " not found"));
 
-        return visitRepository.saveVisit(new Visit(timeRange.start(), timeRange.end(), pat, doc));
+        Visit visit = visitRepository.save(new Visit(timeRange.start(), timeRange.end(), pat, doc));
+
+        return new VisitResponseDto(
+                visit.getId(),
+                DateValidator.format(visit.getStartDateTime(), doc.getTimeZone()),
+                DateValidator.format(visit.getEndDateTime(), doc.getTimeZone()),
+                pat.getId(),
+                doc.getId()
+        );
     }
 
-    /** Renders an instant back as the doctor's local time, so errors echo what the caller sent. */
-    private String inDoctorZone(Instant instant, Doctor doctor) {
-        return LocalDateTime.ofInstant(instant, doctor.getTimeZone()).toString();
-    }
-
-    public Integer createDoctor(DoctorDto doctorDto) {
+    @Transactional
+    public Long createDoctor(DoctorDto doctorDto) {
         ZoneId zoneId = visitValidator.parseTimeZone(doctorDto.timezone());
 
-        Doctor doctor = new Doctor(
-                doctorDto.firstName(),
-                doctorDto.lastName(),
-                zoneId
-        );
-
-        if (doctorRepository.exists(doctor)) {
-            return doctor.getId();
-        }
-
-        return doctorRepository.saveDoctor(doctor);
+        return doctorRepository
+                .findByFirstNameAndLastNameAndTimeZone(doctorDto.firstName(), doctorDto.lastName(), zoneId)
+                .map(Doctor::getId)
+                .orElseGet(() -> doctorRepository
+                        .save(new Doctor(doctorDto.firstName(), doctorDto.lastName(), zoneId))
+                        .getId());
     }
 
-    public Integer createPatient(PatientDto patientDto) {
-        Patient patient = new Patient(
-                patientDto.firstName(),
-                patientDto.lastName()
-        );
-
-        if (patientRepository.exists(patient)) {
-            return patient.getId();
-        }
-
-        return patientRepository.savePatient(patient);
+    @Transactional
+    public Long createPatient(PatientDto patientDto) {
+        return patientRepository
+                .findByFirstNameAndLastName(patientDto.firstName(), patientDto.lastName())
+                .map(Patient::getId)
+                .orElseGet(() -> patientRepository
+                        .save(new Patient(patientDto.firstName(), patientDto.lastName()))
+                        .getId());
     }
 
-    public StatisticDto getStatistic() {
-        return new StatisticDto(
-                visitRepository.getAllVisits().stream().map(v -> new VisitDto(
-                        v.getStartDateTime().toString(),
-                        v.getEndDateTime().toString(),
-                        v.getPatient().getId(),
-                        v.getDoctor().getId()
-                )).toList(),
-                doctorRepository.getAllDoctors().stream().map(d -> new DoctorDto(
-                        d.getFirstName(),
-                        d.getLastName(),
-                        d.getTimeZone().toString()
-                )).toList(),
-                patientRepository.getAllPatients().stream().map(p -> new PatientDto(
-                        p.getFirstName(),
-                        p.getLastName()
-                )).toList()
-        );
+    private static ResponseStatusException badRequest(String reason) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, reason);
     }
 }

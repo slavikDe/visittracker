@@ -1,13 +1,10 @@
 package com.example.visittracker;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class VisittrackerApplicationTests {
+class VisittrackerApplicationTests extends AbstractMySqlTest {
 
-	@Test
-	void contextLoads() {
-	}
-
+    @Test
+    void contextLoads() {
+    }
 }

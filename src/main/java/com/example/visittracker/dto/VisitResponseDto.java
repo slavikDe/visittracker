@@ -1,6 +1,7 @@
 package com.example.visittracker.dto;
 
-public record VisitDto(
+public record VisitResponseDto(
+        Long id,
         String start,
         String end,
         Long patientId,

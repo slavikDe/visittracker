@@ -1,18 +1,19 @@
 package com.example.visittracker.entity;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
-public class Patient  extends CommonPerson {
-    private static int counter = 0;
-
-    private Integer id;
+@NoArgsConstructor
+@Entity
+@Table(name = "patients")
+public class Patient extends CommonPerson {
 
     public Patient(String firstName, String lastName) {
         super(firstName, lastName);
-        id = ++counter;
     }
-
 }

@@ -1,15 +1,22 @@
 package com.example.visittracker.controller;
 
-import com.example.visittracker.dto.StatisticDto;
 import com.example.visittracker.dto.DoctorDto;
 import com.example.visittracker.dto.PatientDto;
+import com.example.visittracker.dto.PatientListResponse;
 import com.example.visittracker.dto.VisitDto;
-import com.example.visittracker.entity.Visit;
+import com.example.visittracker.dto.VisitResponseDto;
+import com.example.visittracker.service.PatientQueryService;
 import com.example.visittracker.service.VisitService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -17,41 +24,40 @@ import org.springframework.web.bind.annotation.*;
 public class TrackerController {
 
     private final VisitService visitService;
+    private final PatientQueryService patientQueryService;
 
-    @GetMapping
-    public ResponseEntity<String> getPatientsVisits() {
-        log.info("Received request to get patients visits");
-        return ResponseEntity.ok().body("returning patients visits");
+    @GetMapping("/patients")
+    public ResponseEntity<PatientListResponse> getPatients(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) List<Long> doctorIds) {
+        log.info("Received request to get patients: page={}, size={}, search={}, doctorIds={}",
+                page, size, search, doctorIds);
+        return ResponseEntity.ok(patientQueryService.getPatients(page, size, search, doctorIds));
     }
 
     @PostMapping("/visit")
-    public ResponseEntity<Visit> createVisit(@RequestBody VisitDto visitDto) {
+    public ResponseEntity<VisitResponseDto> createVisit(@RequestBody VisitDto visitDto) {
         log.info("Received request to create visit: {}", visitDto);
-        Visit visit = visitService.createVisit(visitDto);
-        log.info("Created visit with id: {}", visit.getId());
+        VisitResponseDto visit = visitService.createVisit(visitDto);
+        log.info("Created visit with id: {}", visit.id());
         return ResponseEntity.ok().body(visit);
     }
 
     @PostMapping("/doctor")
-    public ResponseEntity<Integer> createDoctor(@RequestBody DoctorDto doctorDto) {
+    public ResponseEntity<Long> createDoctor(@RequestBody DoctorDto doctorDto) {
         log.info("Received request to create doctor: {}", doctorDto);
-        Integer doctorId = visitService.createDoctor(doctorDto);
+        Long doctorId = visitService.createDoctor(doctorDto);
         log.info("Created doctor with id: {}", doctorId);
         return ResponseEntity.ok().body(doctorId);
     }
 
     @PostMapping("/patient")
-    public ResponseEntity<Integer> createPatient(@RequestBody PatientDto patientDto) {
+    public ResponseEntity<Long> createPatient(@RequestBody PatientDto patientDto) {
         log.info("Received request to create patient: {}", patientDto);
-        Integer patientId = visitService.createPatient(patientDto);
+        Long patientId = visitService.createPatient(patientDto);
         log.info("Created patient with id: {}", patientId);
         return ResponseEntity.ok().body(patientId);
     }
-
-    @GetMapping("/statistic")
-    public ResponseEntity<StatisticDto> getStatistic() {
-        log.info("Received request to get statistic");
-        return ResponseEntity.ok(visitService.getStatistic());
-    }
-
 }

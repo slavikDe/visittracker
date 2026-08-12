@@ -2,22 +2,38 @@ package com.example.visittracker.validation;
 
 import com.example.visittracker.dto.VisitDto;
 import com.example.visittracker.entity.TimeRange;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DateTimeException;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 
 @Component
 public class DateValidator {
+
+    /**
+     * Always emits seconds, unlike {@code LocalDateTime.toString()}, which drops them when zero.
+     * Keeps every rendered time in the API a fixed width.
+     */
+    public static final DateTimeFormatter VISIT_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    /** Renders an absolute instant as wall-clock time in the given zone. */
+    public static String format(Instant instant, ZoneId zone) {
+        return VISIT_TIME.format(LocalDateTime.ofInstant(instant, zone));
+    }
 
     public TimeRange validateDates(VisitDto visitDto, ZoneId doctorZone) {
         LocalDateTime start = parseDateTime(visitDto.start(), "start");
         LocalDateTime end = parseDateTime(visitDto.end(), "end");
 
         if (!start.isBefore(end)) {
-            throw new IllegalArgumentException("Visit start must be before its end");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Visit start must be before its end");
         }
 
         return new TimeRange(
@@ -28,26 +44,28 @@ public class DateValidator {
 
     public ZoneId parseTimeZone(String timezone) {
         if (timezone == null || timezone.isBlank()) {
-            throw new IllegalArgumentException("Doctor timezone can't be empty");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Doctor timezone can't be empty");
         }
 
         try {
             return ZoneId.of(timezone);
         } catch (DateTimeException e) {
-            throw new IllegalArgumentException(
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Doctor timezone must be a valid zone id, e.g. Europe/Kyiv, but was: " + timezone);
         }
     }
 
     private LocalDateTime parseDateTime(String value, String field) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Visit " + field + " can't be empty");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Visit " + field + " can't be empty");
         }
 
         try {
             return LocalDateTime.parse(value);
         } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException(
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Visit " + field + " must be a date time without offset in the doctor's timezone,"
                             + " e.g. 2026-08-06T10:00:00, but was: " + value);
         }

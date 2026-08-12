@@ -1,0 +1,27 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: visittracker-mysql
+    restart: unless-stopped
+    # Credentials match the defaults in application.yaml, so `mvn spring-boot:run` needs no env vars.
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: visittracker
+      MYSQL_USER: visittracker
+      MYSQL_PASSWORD: visittracker
+    ports:
+      - "3306:3306"
+    # Visits are stored as UTC instants; keeping the server on UTC means a raw SQL client shows
+    # exactly the same values the application wrote.
+    command:
+      - --default-time-zone=+00:00
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mysql-data:
