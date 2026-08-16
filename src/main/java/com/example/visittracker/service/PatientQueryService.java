@@ -27,19 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Read side of the patients endpoint.
- * <p>
- * The whole page costs a fixed <b>four</b> queries regardless of page size:
- * <ol>
- *   <li>count of matching patients (for {@code count})</li>
- *   <li>the page of patients itself</li>
- *   <li>every patient's last visit per doctor, in one window-function query</li>
- *   <li>distinct patient totals for the doctors that showed up</li>
- * </ol>
- * The naive shape — loop the page, query each patient's visits, then query each doctor's total —
- * would be 1 + N + M round trips and is the main thing to avoid here.
- */
 @Service
 @RequiredArgsConstructor
 public class PatientQueryService {
@@ -47,11 +34,6 @@ public class PatientQueryService {
     public static final int DEFAULT_PAGE_SIZE = 20;
     public static final int MAX_PAGE_SIZE = 100;
 
-    /**
-     * Placeholder id used when no doctor filter is active. The filter is disabled by the
-     * {@code filterByDoctor} flag anyway, but the list must stay non-empty because {@code IN ()}
-     * is not valid SQL.
-     */
     private static final List<Long> NO_DOCTOR_FILTER = List.of(-1L);
 
     private final PatientRepository patientRepository;
@@ -75,7 +57,6 @@ public class PatientQueryService {
         Collection<Long> doctorFilter = filterByDoctor ? doctorIds : NO_DOCTOR_FILTER;
         String searchPrefix = search == null ? "" : search.trim();
 
-        // Queries 1 and 2.
         Page<Patient> patientPage = patientRepository.findPage(
                 searchPrefix, filterByDoctor ? 1 : 0, doctorFilter, PageRequest.of(pageNumber, pageSize));
 
@@ -86,13 +67,10 @@ public class PatientQueryService {
 
         List<Long> patientIds = patients.stream().map(Patient::getId).toList();
 
-        // Query 3: the whole page's lastVisits at once.
         List<LastVisitRow> rows = visitRepository.findLastVisitPerDoctor(
                 patientIds, filterByDoctor ? 1 : 0, doctorFilter);
 
-        // Query 4: totals only for the doctors actually referenced by this page.
         Map<Long, Long> totalPatientsByDoctor = countPatientsPerDoctor(rows);
-
         Map<Long, List<LastVisitDto>> visitsByPatient = groupVisitsByPatient(rows, totalPatientsByDoctor);
 
         List<PatientVisitsDto> data = patients.stream()

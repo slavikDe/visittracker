@@ -14,16 +14,6 @@ import java.util.Optional;
 @Repository
 public interface PatientRepository extends JpaRepository<Patient, Long> {
 
-    /**
-     * One page of patients matching the optional name prefix and doctor filter.
-     * <p>
-     * Both filters are switched off with sentinels rather than {@code IS NULL} checks: an empty
-     * {@code :search} and {@code :filterByDoctor = 0} let MySQL short-circuit the predicate. The
-     * {@code doctorIds} list is never empty (callers pass a sentinel id), because {@code IN ()} is
-     * a syntax error in SQL.
-     * <p>
-     * Spring Data runs this plus {@code countQuery} — two round trips for the whole page.
-     */
     @Query(value = """
             SELECT p.id, p.first_name, p.last_name
             FROM patients p

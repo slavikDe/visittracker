@@ -16,13 +16,8 @@ import java.time.format.DateTimeParseException;
 @Component
 public class DateValidator {
 
-    /**
-     * Always emits seconds, unlike {@code LocalDateTime.toString()}, which drops them when zero.
-     * Keeps every rendered time in the API a fixed width.
-     */
     public static final DateTimeFormatter VISIT_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
-    /** Renders an absolute instant as wall-clock time in the given zone. */
     public static String format(Instant instant, ZoneId zone) {
         return VISIT_TIME.format(LocalDateTime.ofInstant(instant, zone));
     }

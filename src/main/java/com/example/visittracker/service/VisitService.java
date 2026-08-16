@@ -35,9 +35,6 @@ public class VisitService {
         if (visitDto.patientId() == null) throw badRequest("Patient id can't be null");
         if (visitDto.doctorId() == null) throw badRequest("Doctor id can't be null");
 
-        // The doctor is resolved first for two reasons: the payload carries wall-clock time with no
-        // offset, so it is the doctor's zone that turns it into an instant; and the row lock
-        // serialises concurrent bookings for this doctor, closing the check-then-act race below.
         Doctor doc = doctorRepository.findByIdForUpdate(visitDto.doctorId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Doctor with id: " + visitDto.doctorId() + " not found"));

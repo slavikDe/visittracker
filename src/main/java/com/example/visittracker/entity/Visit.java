@@ -26,7 +26,7 @@ public class Visit {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Absolute instant, persisted as UTC. The doctor's zone is applied at the edges only. */
+    // Absolute instant, persisted as UTC. The doctor's zone is applied at the edges only
     @Column(name = "start_date_time", nullable = false)
     private Instant startDateTime;
 

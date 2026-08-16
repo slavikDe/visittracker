@@ -25,15 +25,8 @@ all — so every branch of the read endpoint has data behind it.
 zcat dump.sql.gz | docker exec -i visittracker-mysql mysql -uroot -proot
 ```
 
-To regenerate instead of restoring:
-
-```bash
-./mvnw spring-boot:run -Dspring-boot.run.profiles=seed
-# tune with -Dspring-boot.run.arguments="--seed.doctors=100 --seed.patients=500000 --seed.visits=2000000"
-```
-
-The seeder lays visits on a per-doctor slot grid, so generated data never violates the
-no-overlap rule the create endpoint enforces.
+Visits sit on a per-doctor half-hour slot grid, so the dataset never violates the no-overlap rule
+the create endpoint enforces.
 
 ### Tests
 
@@ -134,7 +127,7 @@ Supporting indexes, all in `V1__init.sql`:
 Search is a **prefix** match (`LIKE 'x%'`) precisely so these indexes can serve it — a leading
 wildcard (`'%x%'`) cannot use a B-tree and would scan the whole table on every request.
 
-Measured on the seeded 100k-visit dataset: 22–54 ms per page warm, across plain, `search`,
+Measured on the 100k-visit dataset in `dump.sql.gz`: 22–54 ms per page warm, across plain, `search`,
 `doctorIds` and deep-offset (`page=500`) queries.
 
 ## Concurrency

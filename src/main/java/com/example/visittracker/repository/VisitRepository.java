@@ -15,10 +15,6 @@ import java.util.List;
 @Repository
 public interface VisitRepository extends JpaRepository<Visit, Long> {
 
-    /**
-     * True when the doctor already has a visit intersecting {@code [start, end)}.
-     * Served by {@code idx_visits_doctor_start} and stops at the first hit.
-     */
     @Query("""
             SELECT COUNT(v) > 0
             FROM Visit v
@@ -30,14 +26,6 @@ public interface VisitRepository extends JpaRepository<Visit, Long> {
                               @Param("start") Instant start,
                               @Param("end") Instant end);
 
-    /**
-     * The last visit of each given patient to each doctor they have seen — the whole page's
-     * {@code lastVisits} in a single round trip, instead of one query per patient.
-     * <p>
-     * {@code ROW_NUMBER()} partitions by (patient, doctor) and keeps only the most recent row.
-     * {@code idx_visits_patient_doctor_start} confines the scan to just this page's patients — a
-     * few dozen rows — so the window's sort happens over that slice rather than the visits table.
-     */
     @Query(value = """
             SELECT t.patient_id           AS patientId,
                    t.doctor_id            AS doctorId,
@@ -63,10 +51,6 @@ public interface VisitRepository extends JpaRepository<Visit, Long> {
                                               @Param("filterByDoctor") int filterByDoctor,
                                               @Param("doctorIds") Collection<Long> doctorIds);
 
-    /**
-     * Distinct patient count per doctor, for the {@code totalPatients} field. Counted across all
-     * visits, not just the page — the field means "patients who ever visited this doctor".
-     */
     @Query(value = """
             SELECT v.doctor_id               AS doctorId,
                    COUNT(DISTINCT v.patient_id) AS totalPatients
